@@ -1,20 +1,21 @@
 package main
 
 import (
-	"exam_go/database"
-	"exam_go/models"
+	"exam_go/config"
   	ur "exam_go/routes"
 	"log"
+	"exam_go/magrate"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
+	gin.SetMode(gin.ReleaseMode)
 	// เชื่อมต่อฐานข้อมูล
-	database.ConnectDB()
+	config.ConnectDB()
 
 	// ทำ Auto Migrate
-	database.DB.AutoMigrate(&models.User_test{})
+	magrate.AutoMigrateTables()
 
 	// สร้าง Gin Router
 	r := gin.Default()

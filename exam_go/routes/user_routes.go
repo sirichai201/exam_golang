@@ -1,12 +1,11 @@
 package routes
 
 import (
-	// uc "exam_go/controllers/user_controller"
 	"github.com/gin-gonic/gin"
 	uc "exam_go/controllers"
 )
 
-func UserRoutes(r *gin.Engine) { // เปลี่ยนเป็นตัวพิมพ์ใหญ่ U
+func UserRoutes(r *gin.Engine) { 
 	usergroups := r.Group("/users")
 
 	usergroups.POST("", uc.CreateUser)
