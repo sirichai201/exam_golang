@@ -1,16 +1,23 @@
 package routes
 
 import (
-	"github.com/gin-gonic/gin"
 	uc "exam_go/controllers"
+	"exam_go/middleware"
+
+	"github.com/gin-gonic/gin"
 )
 
-func UserRoutes(r *gin.Engine) { 
-	usergroups := r.Group("/users")
+func UserRoutes(r *gin.Engine) {
+	user := r.Group("/user")
+	{
+		user.POST("/signup", uc.RegisterUser)
+		user.POST("/login", uc.Login)
 
-	usergroups.POST("", uc.CreateUser)
-	usergroups.GET("", uc.GetUsers)
-	usergroups.GET("/:id", uc.GetUser)
-	usergroups.PUT("/:id", uc.UpdateUser)
-	usergroups.DELETE("/:id", uc.DeleteUser)
+	}
+
+	// Protected routes
+	protected := r.Group("/protected", middleware.AuthRequired())
+	{
+		protected.GET("/GetTestAuth", uc.GetTestAuth)
+	}
 }

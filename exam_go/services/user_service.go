@@ -1,60 +1,132 @@
 package services
 
 import (
-	"errors"          // ใช้สำหรับสร้างและจัดการ error
-	"exam_go/models"   // นำเข้า model ของ User_test
+	"exam_go/config"
+	"exam_go/models"
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"github.com/dgrijalva/jwt-go"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
-// กำหนด error สำหรับกรณีที่ไม่พบผู้ใช้
-var ErrUserNotFound = errors.New("user not found")
+var secretKey string
 
-// ใช้ slice เก็บข้อมูลผู้ใช้ในหน่วยความจำ
-var users []models.User_test
-
-// CreateUser adds a new user to the list
-// ฟังก์ชันสำหรับเพิ่มผู้ใช้ใหม่เข้าไปใน slice
-func CreateUser(user models.User_test) (models.User_test, error) {
-	users = append(users, user) // เพิ่มผู้ใช้ใหม่เข้าไปใน slice
-	return user, nil            // คืนค่าผู้ใช้และ error เป็น nil
-}
-
-// GetUsers returns all users
-// ฟังก์ชันสำหรับดึงข้อมูลผู้ใช้ทั้งหมด
-func GetUsers() ([]models.User_test, error) {
-	return users, nil // คืนค่า slice ของผู้ใช้ทั้งหมด และ error เป็น nil
-}
-
-// GetUserByID finds a user by ID
-// ฟังก์ชันสำหรับค้นหาผู้ใช้ตาม ID
-func GetUserByID(id uint) (models.User_test, error) {
-	for _, user := range users { // วนลูปดูผู้ใช้ใน slice
-		if user.ID == id { // ถ้าเจอผู้ใช้ที่มี ID ตรงกัน
-			return user, nil // คืนค่าผู้ใช้นั้นและ error เป็น nil
-		}
+func SetSecretKey() {
+	secretKey = os.Getenv("JWT_SECRET_KEY")
+	if secretKey == "" {
+		log.Println("JWT_SECRET_KEY is not set") // Log สำหรับ debug
 	}
-	return models.User_test{}, ErrUserNotFound // กรณีไม่พบผู้ใช้ ให้คืนค่าข้อผิดพลาด
 }
 
-// UpdateUser updates an existing user's details
-// ฟังก์ชันสำหรับอัปเดตข้อมูลผู้ใช้
-func UpdateUser(id uint, updatedUser models.User_test) (models.User_test, error) {
-	for index, user := range users { // วนลูปค้นหาผู้ใช้ใน slice
-		if user.ID == id { // ถ้าเจอผู้ใช้ที่มี ID ตรงกัน
-			users[index] = updatedUser // อัปเดตข้อมูลผู้ใช้ในตำแหน่งนั้น
-			return updatedUser, nil    // คืนค่าผู้ใช้ที่ถูกอัปเดตและ error เป็น nil
-		}
-	}
-	return models.User_test{}, ErrUserNotFound // กรณีไม่พบผู้ใช้ ให้คืนค่าข้อผิดพลาด
+// HashPassword: ฟังก์ชันเข้ารหัสรหัสผ่าน
+func HashPassword(password string) (string, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(hashedPassword), err
 }
 
-// DeleteUser deletes a user by ID
-// ฟังก์ชันสำหรับลบผู้ใช้ตาม ID
-func DeleteUser(id uint) error {
-	for index, user := range users { // วนลูปค้นหาผู้ใช้ใน slice
-		if user.ID == id { // ถ้าเจอผู้ใช้ที่มี ID ตรงกัน
-			users = append(users[:index], users[index+1:]...) // ลบผู้ใช้ออกจาก slice
-			return nil // คืนค่า nil เพื่อบอกว่าการลบสำเร็จ
-		}
+// CheckPassword: ฟังก์ชันตรวจสอบรหัสผ่าน
+func CheckPassword(hashedPassword, password string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+}
+
+// GenerateToken: สร้าง JWT token
+func GenerateToken(user models.RegisterUsers) (string, error) {
+	if secretKey == "" {
+		log.Println("JWT_SECRET_KEY is not set")
+		return "", fmt.Errorf("JWT_SECRET_KEY is not set")
 	}
-	return ErrUserNotFound // กรณีไม่พบผู้ใช้ ให้คืนค่าข้อผิดพลาด
+
+	claims := jwt.MapClaims{
+		"id":    user.ID,
+		"email": user.Email,
+		"exp":   time.Now().Add(time.Hour * 24).Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signedToken, err := token.SignedString([]byte(secretKey))
+	if err != nil {
+		log.Printf("Error signing token: %v\n", err)
+		return "", fmt.Errorf("failed to sign token: %v", err)
+	}
+
+	return signedToken, nil
+}
+
+// ฟังก์ชันตรวจสอบ token
+func ValidateToken(tokenString string) bool {
+	if secretKey == "" {
+		log.Println("JWT_SECRET_KEY is not set")
+		return false
+	}
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// ตรวจสอบ signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("invalid signing method: %v", token.Method)
+		}
+		return []byte(secretKey), nil
+	})
+
+	if err != nil || !token.Valid {
+		log.Println("Invalid token:", err)
+		return false
+	}
+
+	return true
+}
+
+// RegisterUser: ลงทะเบียนผู้ใช้
+func RegisterUser(user *models.RegisterUsers) error {
+	// ตรวจสอบว่า email ซ้ำหรือไม่
+	if CheckDuplicateEmail(user.Email) {
+		return fmt.Errorf("email %s is already registered", user.Email)
+	}
+
+	// เข้ารหัสรหัสผ่าน
+	hashedPassword, err := HashPassword(user.Password)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %v", err)
+	}
+	user.Password = hashedPassword
+
+	// สร้าง account_id ใหม่
+	user.Acount_ID = uint(uuid.New().ID())
+
+	// บันทึกข้อมูลลงฐานข้อมูล
+	if err := config.DB.Create(user).Error; err != nil {
+		return fmt.Errorf("failed to create user: %v", err)
+	}
+
+	return nil
+}
+
+func AuthenticateUser(credentials models.RegisterUsers) (models.RegisterUsers, error) {
+	var user models.RegisterUsers
+
+	// ค้นหาผู้ใช้จาก username
+	if err := config.DB.Where("username = ?", credentials.Username).First(&user).Error; err != nil {
+		log.Printf("User not found for username: %s\n", credentials.Username) // Log สำหรับ debug
+		return user, fmt.Errorf("Invalid username or password")
+	}
+
+	// ตรวจสอบรหัสผ่าน
+	if err := CheckPassword(user.Password, credentials.Password); err != nil {
+		log.Printf("Password mismatch for username: %s\n", credentials.Username) // Log สำหรับ debug
+		return user, fmt.Errorf("Invalid username or password")
+	}
+
+	return user, nil
+}
+
+func CheckDuplicateEmail(email string) bool {
+	var user models.RegisterUsers
+	if err := config.DB.Where("email = ?", email).First(&user).Error; err == nil {
+		// ถ้ามี email อยู่แล้วในฐานข้อมูล
+		return true
+	}
+	return false
 }

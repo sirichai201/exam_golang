@@ -6,19 +6,10 @@ import (
 	"log"
 )
 
-// AutoMigrateTables automates the migration of database tables
 func AutoMigrateTables() {
-	// เพิ่มตารางที่ต้องการ AutoMigrate
-	tables := []interface{}{
-		&models.User_test{},
+	err := config.DB.AutoMigrate(&models.RegisterUsers{})
+	if err != nil {
+		log.Fatal("Failed to migrate tables:", err)
 	}
-
-	// AutoMigrate สำหรับทุกตาราง
-	for _, table := range tables {
-		err := config.DB.AutoMigrate(table)
-		if err != nil {
-			log.Fatalf("Failed to migrate table %T: %v", table, err)
-		}
-	}
-	log.Println("Database migration completed successfully!")
+	log.Println("Tables migrated successfully")
 }
