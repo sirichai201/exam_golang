@@ -7,7 +7,7 @@ import (
 )
 
 func AutoMigrateTables() {
-	err := config.DB.AutoMigrate(&models.RegisterUsers{})
+	err := config.DB.AutoMigrate(&models.Users{})
 	if err != nil {
 		log.Fatal("Failed to migrate tables:", err)
 	}
